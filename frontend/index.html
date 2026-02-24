@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Code Analyzer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="overlay"></div>
+
+    <header class="fade-down">
+        <h1>AI Code Analyzer</h1>
+    </header>
+
+    <main class="container">
+        <section class="panel slide-left">
+            <h2>Code Input</h2>
+            <textarea id="code" placeholder="Paste your source code here..."></textarea>
+            <button onclick="analyzeCode()" class="ripple">Analyze Code</button>
+        </section>
+
+        <section class="panel slide-right">
+            <h2>Analysis Output</h2>
+            <pre id="result">Waiting for analysis...</pre>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
