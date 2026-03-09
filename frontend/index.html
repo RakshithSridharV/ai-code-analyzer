@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Analyzer — Intelligent Code Quality Analysis</title>
+    <meta name="description" content="AI-powered code analyzer that evaluates time/space complexity, detects patterns, and provides optimization suggestions with machine learning insights.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Aurora background layers -->
+    <div class="aurora-bg">
+        <div class="aurora-layer aurora-1"></div>
+        <div class="aurora-layer aurora-2"></div>
+        <div class="aurora-layer aurora-3"></div>
+    </div>
+
+    <!-- Particle constellation background -->
+    <canvas id="particles"></canvas>
+
+    <!-- Navigation -->
+    <nav id="main-nav">
+        <div class="nav-brand">
+            <div class="logo-glow-wrap">
+                <span class="logo-icon">⚡</span>
+            </div>
+            <div class="nav-title-group">
+                <h1>AI Code Analyzer</h1>
+                <span class="nav-tagline">AST + Machine Learning Pipeline</span>
+            </div>
+        </div>
+        <div class="nav-actions">
+            <button id="examples-btn" onclick="toggleExamples()" title="Quick Examples">
+                <span class="nav-btn-icon">📚</span><span class="nav-btn-text">Examples</span>
+            </button>
+            <button id="history-btn" onclick="openHistoryModal()" title="Analysis History">
+                <span class="nav-btn-icon">🕰️</span><span class="nav-btn-text">History</span>
+            </button>
+            <button id="shortcuts-btn" onclick="openShortcutsModal()" title="Keyboard Shortcuts">
+                <span class="nav-btn-icon">⌨️</span><span class="nav-btn-text">Keys</span>
+            </button>
+            <div class="nav-separator"></div>
+            <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme" class="theme-btn">
+                <span class="theme-icon-dark">🌙</span>
+                <span class="theme-icon-light">☀️</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <!-- Main Content -->
+    <main class="container">
+
+        <!-- =================== INPUT PANEL =================== -->
+        <section class="panel input-panel" id="input-panel">
+            <div class="panel-header">
+                <h2><span class="header-icon">📝</span> Code Input</h2>
+                <div class="language-selector">
+                    <select id="language-select">
+                        <option value="auto">🔍 Auto-detect</option>
+                        <option value="python">🐍 Python</option>
+                        <option value="javascript">🟨 JavaScript</option>
+                        <option value="java">☕ Java</option>
+                        <option value="c">⚙️ C</option>
+                        <option value="cpp">🔧 C++</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="editor-wrapper">
+                <div class="line-numbers" id="line-numbers">1</div>
+                <textarea id="code" placeholder="Paste your source code here..." spellcheck="false"></textarea>
+            </div>
+
+            <div class="editor-footer">
+                <div class="code-stats">
+                    <span id="line-count">0 lines</span>
+                    <span class="stat-divider">|</span>
+                    <span id="char-count">0 chars</span>
+                </div>
+                <div class="action-buttons">
+                    <button id="analyze-btn" onclick="analyzeCode()">
+                        <span class="btn-text">⚡ Analyze Code</span>
+                        <span class="btn-loader" style="display:none">
+                            <span class="spinner"></span> Analyzing...
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="shortcut-hint">
+                Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to analyze · <kbd>?</kbd> for shortcuts
+            </div>
+        </section>
+
+        <!-- =================== OUTPUT PANEL =================== -->
+        <section class="panel output-panel" id="output-panel">
+            <div class="panel-header">
+                <h2><span class="header-icon">📊</span> Analysis Results</h2>
+                <div class="panel-actions">
+                    <span class="analysis-time" id="analysis-time" style="display:none">
+                        <span class="time-icon">⚡</span>
+                        <span id="analysis-time-value">0</span>ms
+                    </span>
+                    <div class="export-dropdown" id="export-dropdown" style="display:none">
+                        <button class="export-btn" onclick="toggleExportMenu()">
+                            <span>📥</span> Export
+                        </button>
+                        <div class="export-menu" id="export-menu">
+                            <button onclick="exportJSON()">📄 Export JSON</button>
+                            <button onclick="exportReport()">📋 Copy Report</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state">
+                <div class="empty-icon">🔬</div>
+                <h3>Ready to Analyze</h3>
+                <p>Paste your code and click Analyze to see the magic</p>
+            </div>
+
+            <!-- Results Container (hidden by default) -->
+            <div id="results" style="display:none">
+
+                <!-- Score + Meta Row -->
+                <div class="results-top-row">
+                    <div class="score-card">
+                        <svg class="score-ring" viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52"/>
+                            <circle class="score-ring-fill" id="score-ring-fill" cx="60" cy="60" r="52"/>
+                        </svg>
+                        <div class="score-value" id="score-value">—</div>
+                        <div class="score-label">Quality Score</div>
+                    </div>
+                    <div class="meta-cards">
+                        <div class="meta-card">
+                            <div class="meta-icon">🔤</div>
+                            <div class="meta-info">
+                                <div class="meta-label">Language</div>
+                                <div class="meta-value" id="lang-value">—</div>
+                            </div>
+                        </div>
+                        <div class="meta-card">
+                            <div class="meta-icon">🧠</div>
+                            <div class="meta-info">
+                                <div class="meta-label">AI Verdict</div>
+                                <div class="meta-value" id="ai-value">—</div>
+                            </div>
+                        </div>
+                        <div class="meta-card">
+                            <div class="meta-icon">🎯</div>
+                            <div class="meta-info">
+                                <div class="meta-label">Opt. Priority</div>
+                                <div class="meta-value" id="priority-value">—</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complexity Cards -->
+                <div class="complexity-row">
+                    <div class="complexity-card">
+                        <div class="complexity-icon">⏱️</div>
+                        <div class="complexity-label">Time Complexity</div>
+                        <div class="complexity-value" id="time-value">—</div>
+                    </div>
+                    <div class="complexity-card">
+                        <div class="complexity-icon">💾</div>
+                        <div class="complexity-label">Space Complexity</div>
+                        <div class="complexity-value" id="space-value">—</div>
+                    </div>
+                </div>
+
+                <!-- Code Metrics Dashboard -->
+                <div class="section-card metrics-dashboard stagger-1" id="metrics-section" style="display:none">
+                    <h3><span class="header-icon">📏</span> Code Metrics</h3>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-header">
+                                <span class="metric-name">Cyclomatic Complexity</span>
+                                <span class="metric-num" id="metric-cc">—</span>
+                            </div>
+                            <div class="metric-bar-track"><div class="metric-bar-fill" id="metric-cc-bar"></div></div>
+                            <span class="metric-hint" id="metric-cc-hint">—</span>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-header">
+                                <span class="metric-name">Maintainability Index</span>
+                                <span class="metric-num" id="metric-mi">—</span>
+                            </div>
+                            <div class="metric-bar-track"><div class="metric-bar-fill mi-bar" id="metric-mi-bar"></div></div>
+                            <span class="metric-hint" id="metric-mi-hint">—</span>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-header">
+                                <span class="metric-name">Comment Ratio</span>
+                                <span class="metric-num" id="metric-cr">—</span>
+                            </div>
+                            <div class="metric-bar-track"><div class="metric-bar-fill cr-bar" id="metric-cr-bar"></div></div>
+                            <span class="metric-hint" id="metric-cr-hint">—</span>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-header">
+                                <span class="metric-name">Functions Found</span>
+                                <span class="metric-num" id="metric-fn">—</span>
+                            </div>
+                            <div class="metric-mini-stats">
+                                <span id="metric-loc">— lines</span>
+                                <span class="stat-divider">•</span>
+                                <span id="metric-blanks">— blank</span>
+                                <span class="stat-divider">•</span>
+                                <span id="metric-comments">— comments</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complexity Growth Chart -->
+                <div class="section-card stagger-2">
+                    <h3><span class="header-icon">📈</span> Complexity Growth Visualization</h3>
+                    <canvas id="complexity-chart" width="600" height="280"></canvas>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+
+                <!-- Patterns -->
+                <div class="section-card stagger-3">
+                    <h3><span class="header-icon">🚨</span> Detected Patterns</h3>
+                    <div class="patterns-container" id="patterns-container"></div>
+                </div>
+
+                <!-- Explanations -->
+                <div class="section-card stagger-4" id="explanation-section" style="display:none">
+                    <h3><span class="header-icon">📖</span> Detailed Explanation</h3>
+                    <div id="explanation-content"></div>
+                </div>
+
+                <!-- Suggestions -->
+                <div class="section-card stagger-5" id="suggestions-section" style="display:none">
+                    <h3><span class="header-icon">🛠️</span> Optimization Suggestions</h3>
+                    <ul id="suggestions-list"></ul>
+                </div>
+
+                <!-- Optimized Code -->
+                <div class="section-card stagger-6" id="optimization-section" style="display:none">
+                    <h3><span class="header-icon">🚀</span> Optimized Code</h3>
+                    <div class="opt-description" id="opt-description" style="display:none"></div>
+                    <div class="opt-meta" id="opt-meta"></div>
+                    <div class="code-block">
+                        <button class="copy-btn" id="copy-btn" onclick="copyOptimizedCode()">📋 Copy</button>
+                        <pre><code id="optimized-code"></code></pre>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Examples Drawer Backdrop -->
+    <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleExamples()"></div>
+
+    <!-- Examples Drawer -->
+    <div class="drawer" id="examples-drawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h3>📚 Quick Examples</h3>
+                <button class="drawer-close" onclick="toggleExamples()">✕</button>
+            </div>
+            <div class="example-tabs" id="example-tabs">
+                <button data-lang="python" class="active">🐍 Python</button>
+                <button data-lang="javascript">🟨 JS</button>
+                <button data-lang="java">☕ Java</button>
+                <button data-lang="c">⚙️ C</button>
+                <button data-lang="cpp">🔧 C++</button>
+            </div>
+            <div id="example-list"></div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal" id="history-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🕰️ Analysis History</h3>
+                <button class="modal-close" onclick="closeHistoryModal()">✕</button>
+            </div>
+            <div class="modal-body" id="history-list">
+                <p class="empty-history">No analysis history yet</p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="clearHistory()" class="btn-secondary">🗑️ Clear All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div class="modal" id="shortcuts-modal">
+        <div class="modal-content shortcuts-modal-content">
+            <div class="modal-header">
+                <h3>⌨️ Keyboard Shortcuts</h3>
+                <button class="modal-close" onclick="closeShortcutsModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>Enter</kbd><span>Analyze code</span></div>
+                <div class="shortcut-row"><kbd>?</kbd><span>Show shortcuts</span></div>
+                <div class="shortcut-row"><kbd>Esc</kbd><span>Close modals</span></div>
+                <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>E</kbd><span>Toggle examples</span></div>
+                <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>H</kbd><span>Open history</span></div>
+                <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>D</kbd><span>Toggle theme</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confetti canvas (celebration for high scores) -->
+    <canvas id="confetti" class="confetti-canvas"></canvas>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p>Built with ❤️ and AI · AST Analysis + Machine Learning · One of a Kind</p>
+            <p class="footer-tech">Python · Flask · scikit-learn · Vanilla JS</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
