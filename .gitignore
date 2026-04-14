@@ -1,0 +1,54 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+code_quality_dataset.csv
+
+# Frontend (Node / Vite)
+node_modules/
+frontend/node_modules/
+dist/
+dist-ssr/
+*.local
+.eslintcache
+.npm
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Data
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+error.log
+
+# Note: We are specifically NOT ignoring model/*.pkl 
+# so that the trained Random Forest model gets pushed 
+# to GitHub and can be deployed directly to your host!
+classification_report.txt
+
+# Database
+*.db
+analyzer.db
