@@ -1,8 +1,40 @@
 import React, { useState } from 'react';
 import FixPanel from './FixPanel';
 
-export default function AnalysisBoard({ analysis, isAnalyzing, originalCode }) {
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+
+export default function AnalysisBoard({ analysis, isAnalyzing, originalCode, code }) {
   const [showFix, setShowFix] = useState(false);
+  const [exportingReport, setExportingReport] = useState(false);
+
+  const handleExportReport = async () => {
+    if (!analysis) return;
+    setExportingReport(true);
+    try {
+      const res = await fetch(`${API}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis_result: analysis, code: code || originalCode || '' }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Report generation failed');
+
+      // Trigger browser download
+      const blob = new Blob([data.report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'astra_report.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message || 'Failed to generate report');
+    } finally {
+      setExportingReport(false);
+    }
+  };
 
   if (isAnalyzing) {
     return (
@@ -28,13 +60,25 @@ export default function AnalysisBoard({ analysis, isAnalyzing, originalCode }) {
     <div className="analysis-board">
       <div className="board-header">
         Analysis Results
-        <button
-          className="fix-btn"
-          onClick={() => setShowFix(true)}
-          title="Let AI rewrite the code to fix detected issues"
-        >
-          ⚡ Fix My Code
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            id="export-report-btn"
+            className="fix-btn"
+            onClick={handleExportReport}
+            disabled={exportingReport}
+            title="Download plain-text analysis report"
+            style={{ opacity: exportingReport ? 0.6 : 1 }}
+          >
+            {exportingReport ? '⏳ Exporting…' : '📄 Export Report'}
+          </button>
+          <button
+            className="fix-btn"
+            onClick={() => setShowFix(true)}
+            title="Let AI rewrite the code to fix detected issues"
+          >
+            ⚡ Fix My Code
+          </button>
+        </div>
       </div>
 
       <div className="board-content">
@@ -78,6 +122,97 @@ export default function AnalysisBoard({ analysis, isAnalyzing, originalCode }) {
             <p className="mt-05">{analysis.explanation}</p>
           </div>
         </div>
+
+        {/* SECTION C — Dead Code */}
+        {analysis.analysis.dead_code?.length > 0 && (
+          <div className="insight-section mt-1">
+            <label className="section-label-block">💀 Dead Code Detected</label>
+            <div className="mb-1" style={{ fontSize: '0.9em', opacity: 0.8 }}>
+              {analysis.analysis.dead_code.length} issues found
+            </div>
+            {analysis.analysis.dead_code.map((item, i) => (
+              <div key={i} className="insight-card mb-05" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="pattern-badge" style={{
+                  backgroundColor: item.severity === 'high' ? 'var(--danger)' : item.severity === 'medium' ? 'var(--warning-color)' : 'var(--warning)',
+                  color: '#fff'
+                }}>
+                  {item.severity}
+                </span>
+                <span style={{ fontWeight: 'bold' }}>{item.pattern.replace(/_/g, ' ')}</span>
+                <span style={{ opacity: 0.8 }}>— {item.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* SECTION D — Halstead Metrics */}
+        {analysis.analysis.halstead && Object.keys(analysis.analysis.halstead).length > 0 && (
+          <div className="insight-section mt-1">
+            <label className="section-label-block">📐 Halstead Complexity</label>
+            <div className="metrics-grid mt-1">
+              <div className="metric-card">
+                <label>Volume</label>
+                <span>{Math.round(analysis.analysis.halstead.volume)}</span>
+                <div style={{ fontSize: '0.8em', opacity: 0.8 }}>{analysis.analysis.halstead.volume_label}</div>
+              </div>
+              <div className="metric-card">
+                <label>Difficulty</label>
+                <span>{analysis.analysis.halstead.difficulty.toFixed(1)}</span>
+                <div style={{ fontSize: '0.8em', opacity: 0.8 }}>{analysis.analysis.halstead.difficulty_label}</div>
+              </div>
+              <div className="metric-card">
+                <label>Bugs Estimated</label>
+                <span style={{
+                  color: analysis.analysis.halstead.bugs_estimated < 0.05 ? 'var(--success)' :
+                         analysis.analysis.halstead.bugs_estimated <= 0.2 ? 'var(--warning-color)' : 'var(--danger)'
+                }}>
+                  {analysis.analysis.halstead.bugs_estimated.toFixed(3)}
+                </span>
+                <div style={{ fontSize: '0.8em', opacity: 0.8 }}>{analysis.analysis.halstead.bugs_label}</div>
+              </div>
+            </div>
+            <div className="mt-05" style={{ fontSize: '0.8em', opacity: 0.6 }}>
+              Based on Halstead's 1977 software science metrics
+            </div>
+          </div>
+        )}
+
+        {/* SECTION E — Type Info */}
+        {analysis.analysis.type_info && analysis.analysis.type_info.variables && Object.keys(analysis.analysis.type_info.variables).length > 0 && (
+          <div className="insight-section mt-1">
+            <label className="section-label-block">🔬 Inferred Types</label>
+            <div className="fn-table-wrap mt-05">
+              <table className="fn-table" style={{ fontSize: '0.9em' }}>
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Inferred Type</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(analysis.analysis.type_info.variables).map(([v, info], i) => (
+                    <tr key={i}>
+                      <td className="fn-name">{v}</td>
+                      <td className="fn-mono">{info.type}</td>
+                      <td>{(info.confidence * 100).toFixed(0)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {analysis.analysis.type_info.parameter_hints && Object.keys(analysis.analysis.type_info.parameter_hints).length > 0 && (
+              <div className="mt-1" style={{ fontSize: '0.85em', opacity: 0.8 }}>
+                {Object.entries(analysis.analysis.type_info.parameter_hints).map(([p, t], i) => (
+                  <div key={i}>param {p} inferred as: {t} (from usage)</div>
+                ))}
+              </div>
+            )}
+            <div className="mt-05" style={{ fontSize: '0.8em', opacity: 0.6 }}>
+              Inferred statically — no execution required
+            </div>
+          </div>
+        )}
 
         {analysis.analysis.cyclomatic && (
           <div className="insight-section">

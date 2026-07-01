@@ -22,6 +22,9 @@ from analyzer.data_flow_tracer import DataFlowTracer
 from analyzer.anti_pattern_detector import AntiPatternDetector
 from analyzer.cyclomatic_analyzer import CyclomaticAnalyzer
 from analyzer.confidence_estimator import ConfidenceEstimator
+from analyzer.dead_code_detector import DeadCodeDetector
+from analyzer.type_inferencer import TypeInferencer
+from analyzer.halstead_analyzer import HalsteadAnalyzer
 from analyzer.eco_score import calculate_eco_score
 from analyzer.pattern_detector import detect_patterns
 from analyzer.code_optimizer import get_optimized_code
@@ -34,10 +37,14 @@ from analyzer.language_detector import detect_language
 from analyzer.c_analyzer import analyze_c_code
 from analyzer.java_analyzer import analyze_java_code
 from analyzer.js_analyzer import analyze_js_code
+from analyzer.cpp_analyzer import analyze_cpp_code
+from analyzer.cfg_builder import CFGBuilder
+from analyzer.report_builder import ReportBuilder
 from ai_chat import stream_chat, get_available_models
 from analyzer.function_splitter import analyze_functions
 from database import init_db, save_analysis, get_history, code_hash
 from auth import auth_bp
+from challenges import get_all_challenges, get_challenge, grade_submission
 
 # Ensure the DB tables exist when the server starts
 init_db()
@@ -110,6 +117,22 @@ def analyze():
 
     logger.info("Analyzing %s code, length=%d", language, len(code))
 
+    # ── Pre-initialise all optional fields so every branch is safe ────────────
+    time_c = space_c = "Unknown"
+    is_recursive = False
+    loops = 0
+    cyclomatic = None
+    confidence = None
+    dead_code = []
+    type_info = {}
+    halstead = {}
+    data_flow = []
+    anti_patterns = []
+    explanation = ""
+    function_breakdown = []
+    recursion = {}
+    non_python_patterns = []  # patterns detected by non-python analyzers
+
     if language == "python":
         tree = parse_code(code)
         if isinstance(tree, str):
@@ -123,7 +146,10 @@ def analyze():
         space_c = inference["space"]
         is_recursive = recursion["is_recursive"]
         loops = 0
-        data_flow = DataFlowTracer(tree, code).trace()
+        dead_code = DeadCodeDetector(tree, code).detect()
+        type_info = TypeInferencer(tree, code).infer()
+        halstead = HalsteadAnalyzer(tree, code).analyze()
+        data_flow = DataFlowTracer(tree, code, type_info).trace()
         anti_patterns = AntiPatternDetector(tree, code).detect()
         explanation = ExplanationBuilder(inference, code, "").build()
         function_breakdown = analyze_functions(code)
@@ -137,12 +163,14 @@ def analyze():
         space_c = java_analysis["space_complexity"]
         is_recursive = java_analysis["recursion"]
         loops = java_analysis["loops"]
+        non_python_patterns = java_analysis.get("patterns", [])
+        function_breakdown = java_analysis.get("function_breakdown", [])
 
-    elif language in ("c", "cpp"):
+    elif language == "c":
         time_c, space_c, is_recursive, loops = analyze_c_code(code)
 
-    elif language == "cpp_unsupported":
-        return jsonify({"error": "Real C++ (with STL, classes, templates) is not supported. Only C-subset is parsed."}), 400
+    elif language == "cpp":
+        time_c, space_c, is_recursive, loops = analyze_cpp_code(code)
 
     else:
         return jsonify({"error": f"Unsupported language: {language}"}), 400
@@ -152,12 +180,14 @@ def analyze():
         space_complexity=space_c,
         is_recursive=is_recursive
     )
+    # Merge in any language-specific patterns detected by the non-Python analyzer
+    for p in non_python_patterns:
+        if p not in patterns:
+            patterns.append(p)
 
     features = extract_features(time_c, space_c, patterns)
     ai_prediction = predict_code_quality(features)
     optimization_priority = rank_optimizations(patterns, ai_prediction)
-    if language != "python":
-        explanation = ""
     quality_score = calculate_quality_score(ai_prediction, features)
     optimization = get_optimized_code(patterns, time_c, language)
     eco_metrics = calculate_eco_score(time_c, space_c, language)
@@ -171,7 +201,10 @@ def analyze():
             "recursion": is_recursive,
             "eco_metrics": eco_metrics,
             "cyclomatic": cyclomatic if language == "python" else None,
-            "confidence": confidence if language == "python" else None
+            "confidence": confidence if language == "python" else None,
+            "dead_code": dead_code if language == "python" else [],
+            "type_info": type_info if language == "python" else {},
+            "halstead": halstead if language == "python" else {},
         },
         "patterns": patterns,
         "explanation": explanation,
@@ -185,10 +218,8 @@ def analyze():
         "recursion_detail": recursion if language == "python" else {},
         "data_flow": data_flow if language == "python" else [],
         "anti_patterns": anti_patterns if language == "python" else [],
+        "functions": function_breakdown,
     }
-
-    if language == "python":
-        response["functions"] = function_breakdown
 
     # ── Persist to history (best-effort) ──────────────────────────────────────
     try:
@@ -205,6 +236,15 @@ def analyze():
         eco_score_val = None
         if eco_metrics and isinstance(eco_metrics, dict):
             eco_score_val = eco_metrics.get("eco_score_100")
+
+        cyclomatic_score_val = None
+        if cyclomatic and isinstance(cyclomatic, dict):
+            cyclomatic_score_val = cyclomatic.get("score")
+
+        halstead_bugs_val = None
+        if halstead and isinstance(halstead, dict):
+            halstead_bugs_val = halstead.get("bugs_estimated")
+
         save_analysis({
             "language":         language,
             "time_complexity":  time_c,
@@ -213,11 +253,54 @@ def analyze():
             "eco_score":        eco_score_val,
             "code_hash":        code_hash(code),
             "user_id":          current_user_id,
+            "cyclomatic_score": cyclomatic_score_val,
+            "halstead_bugs":    halstead_bugs_val,
         })
     except Exception as db_err:
         logger.warning("Failed to persist analysis: %s", db_err)
 
     return jsonify(response)
+
+
+@app.route("/cfg", methods=["POST"])
+@limiter.limit("20/minute")
+def cfg():
+    """
+    Build and return a Control Flow Graph for Python code.
+    Request body: {"code": str, "language": str}
+    Returns: CFG dict or error
+    """
+    data = request.get_json()
+    code = data.get("code", "")
+
+    if len(code) > 10_000:
+        return jsonify({"error": "Code too large"}), 400
+
+    language = data.get("language", "python")
+    if language != "python":
+        return jsonify({"error": "CFG is only supported for Python"}), 400
+
+    tree = parse_code(code)
+    if isinstance(tree, str):
+        return jsonify({"error": tree}), 400
+
+    cfg_result = CFGBuilder(tree, code).build()
+    return jsonify(cfg_result)
+
+
+@app.route("/report", methods=["POST"])
+@limiter.limit("10/minute")
+def report():
+    """
+    Generate a plain-text analysis report.
+    Request body: {"analysis_result": dict, "code": str}
+    Returns: {"report": str}
+    """
+    data = request.get_json()
+    analysis_result = data.get("analysis_result", {})
+    code = data.get("code", "")
+    report_text = ReportBuilder(analysis_result, code).build()
+    return jsonify({"report": report_text})
 
 
 @app.route("/history", methods=["GET"])
@@ -231,6 +314,54 @@ def history():
     except Exception as e:
         logger.error(f"Error in /history: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch history"}), 500
+
+
+@app.route("/challenges", methods=["GET"])
+def challenges_list():
+    """Return all challenges (without test_cases) for the challenge picker."""
+    return jsonify({"challenges": get_all_challenges()})
+
+
+@app.route("/challenges/<int:challenge_id>/submit", methods=["POST"])
+@limiter.limit("20/minute")
+def challenges_submit(challenge_id: int):
+    """
+    Grade a challenge submission.
+
+    Request body: {"code": str}
+    Response: grading dict from grade_submission()
+    """
+    challenge = get_challenge(challenge_id)
+    if challenge is None:
+        return jsonify({"error": f"Challenge {challenge_id} not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    code = data.get("code", "").strip()
+
+    if not code:
+        return jsonify({"error": "No code submitted."}), 400
+
+    if len(code) > 10_000:
+        return jsonify({"error": "Code too large (max 10,000 chars)."}), 400
+
+    # ── ASTra complexity analysis (Python only) ────────────────────────────────
+    achieved_complexity = "Unknown"
+    try:
+        from analyzer.parser import parse_code as _parse
+        tree = _parse(code)
+        if not isinstance(tree, str):                  # str = parse error
+            inference = InferenceEngine(tree, code).analyze()
+            achieved_complexity = inference.get("time", "Unknown")
+    except Exception as analysis_err:
+        logger.warning("Challenge analysis error: %s", analysis_err)
+
+    # ── Grade the submission ───────────────────────────────────────────────────
+    try:
+        result = grade_submission(challenge_id, code, achieved_complexity)
+        return jsonify(result)
+    except Exception as e:
+        logger.error("Challenge grading error: %s", e, exc_info=True)
+        return jsonify({"error": f"Grading failed: {e}"}), 500
 
 
 @app.route("/chat", methods=["POST"])

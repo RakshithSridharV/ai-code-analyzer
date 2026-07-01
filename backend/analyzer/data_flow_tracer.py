@@ -31,9 +31,15 @@ class DataFlowTracer:
         }
     """
 
-    def __init__(self, tree: ast.AST, source_code: str) -> None:
+    def __init__(
+        self,
+        tree: ast.AST,
+        source_code: str,
+        type_info: dict | None = None
+    ) -> None:
         self.tree = tree
         self.source_code = source_code  # reserved for future source-level checks
+        self.type_info = type_info
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -94,6 +100,11 @@ class DataFlowTracer:
                         and isinstance(child.value.func.value, ast.Name)
                     ):
                         list_vars.add(child.value.func.value.id)
+
+        if self.type_info and "parameter_hints" in self.type_info:
+            for param, inferred_type in self.type_info["parameter_hints"].items():
+                if inferred_type == "list":
+                    list_vars.add(param)
 
         findings: list[dict] = []
         reported: set[str] = set()

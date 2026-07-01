@@ -22,6 +22,8 @@ Tables
     quality_score    INTEGER
     eco_score        REAL     nullable
     code_hash        TEXT     SHA-256 hex digest
+    cyclomatic_score INTEGER  nullable
+    halstead_bugs    REAL     nullable
 
 SQLite file: backend/analyzer.db
 """
@@ -75,14 +77,26 @@ analyses = Table(
     Column("quality_score",    Integer, nullable=False),
     Column("eco_score",        Float,   nullable=True),
     Column("code_hash",        Text,    nullable=False),
+    Column("cyclomatic_score", Integer, nullable=True),
+    Column("halstead_bugs",    Float,   nullable=True),
 )
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def init_db() -> None:
-    """Create all tables if they do not already exist."""
+    """Create all tables if they do not already exist, and migrate existing DBs."""
     _metadata.create_all(_engine)
+    # Safe migrations for existing databases — ignored if the column already exists
+    with _engine.begin() as conn:
+        for ddl in (
+            "ALTER TABLE analyses ADD COLUMN cyclomatic_score INTEGER",
+            "ALTER TABLE analyses ADD COLUMN halstead_bugs    REAL",
+        ):
+            try:
+                conn.execute(__import__("sqlalchemy").text(ddl))
+            except Exception:
+                pass  # Column already exists — ignore
 
 
 # ── Code hash helper ───────────────────────────────────────────────────────────
@@ -137,6 +151,8 @@ def save_analysis(data: dict) -> None:
       eco_score        float | None
       code_hash        str
       user_id          int | None   (optional)
+      cyclomatic_score int | None   (optional)
+      halstead_bugs    float | None (optional)
     """
     row = {
         "user_id":          data.get("user_id"),
@@ -147,6 +163,8 @@ def save_analysis(data: dict) -> None:
         "quality_score":    int(data["quality_score"]),
         "eco_score":        data.get("eco_score"),
         "code_hash":        data["code_hash"],
+        "cyclomatic_score": data.get("cyclomatic_score"),
+        "halstead_bugs":    data.get("halstead_bugs"),
     }
     with _engine.begin() as conn:
         conn.execute(insert(analyses).values(**row))

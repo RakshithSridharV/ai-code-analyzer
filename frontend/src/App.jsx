@@ -1,12 +1,39 @@
 import React, { useState } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AnalysisBoard from './components/AnalysisBoard';
+import CFGVisualizer from './components/CFGVisualizer';
 import Chat from './components/Chat';
 import HistoryPanel from './components/HistoryPanel';
 import AuthModal from './components/AuthModal';
+import TrendVisualiser from './components/TrendVisualiser';
+import DiffAnalyzer from './components/DiffAnalyzer';
+import ChallengeMode from './components/ChallengeMode';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LandingPage from './components/LandingPage';
 import './App.css';
+
+// ── Challenge solved-count badge (reads from localStorage, no prop drill) ──────
+function useSolvedCount() {
+  const [count, setCount] = React.useState(() => {
+    try {
+      const r = JSON.parse(localStorage.getItem('astra_challenge_results') || '{}');
+      return Object.values(r).filter(v => v.grade === 'PASS').length;
+    } catch { return 0; }
+  });
+  // Re-read whenever the tab becomes active
+  React.useEffect(() => {
+    const refresh = () => {
+      try {
+        const r = JSON.parse(localStorage.getItem('astra_challenge_results') || '{}');
+        setCount(Object.values(r).filter(v => v.grade === 'PASS').length);
+      } catch {}
+    };
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => { window.removeEventListener('storage', refresh); window.removeEventListener('focus', refresh); };
+  }, []);
+  return count;
+}
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
@@ -47,6 +74,9 @@ function AppInner({ onBack }) {
   const [showHistory, setShowHistory]   = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [compareMode, setCompareMode]   = useState(false);
+  const [activeTab, setActiveTab]       = useState('analysis'); // 'analysis' | 'cfg' | 'trends' | 'diff' | 'challenges'
+
+  const solvedCount = useSolvedCount();
 
   // ── Compare mode state ─────────────────────────────────────────────────────
   const [leftCode,  setLeftCode]   = useState(DEFAULT_PY);
@@ -151,6 +181,11 @@ function AppInner({ onBack }) {
     setShowHistory(false);
   };
 
+  // Resolve the effective language (for CFGVisualizer)
+  const effectiveLanguage = (!language || language === 'auto')
+    ? (analysis?.language ?? 'python')
+    : language;
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="app-container">
@@ -235,11 +270,158 @@ function AppInner({ onBack }) {
             />
           </div>
           <div className="glass-panel right-pane">
-            <AnalysisBoard
-              analysis={analysis}
-              isAnalyzing={isAnalyzing}
-              originalCode={code}
-            />
+            {/* Tab navigation */}
+            <div style={{
+              display: 'flex',
+              gap: '0',
+              borderBottom: '1px solid #2a2a26',
+              background: '#0d0d0b',
+              borderRadius: '8px 8px 0 0',
+              overflow: 'hidden',
+            }}>
+              <button
+                id="tab-analysis"
+                onClick={() => setActiveTab('analysis')}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  background: activeTab === 'analysis' ? '#1a1a16' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'analysis' ? '2px solid #c8f060' : '2px solid transparent',
+                  color: activeTab === 'analysis' ? '#c8f060' : '#666',
+                  fontWeight: activeTab === 'analysis' ? 700 : 400,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                📊 Analysis
+              </button>
+              <button
+                id="tab-cfg"
+                onClick={() => setActiveTab('cfg')}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  background: activeTab === 'cfg' ? '#1a1a16' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'cfg' ? '2px solid #c8f060' : '2px solid transparent',
+                  color: activeTab === 'cfg' ? '#c8f060' : '#666',
+                  fontWeight: activeTab === 'cfg' ? 700 : 400,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                ⬡ Control Flow
+              </button>
+              <button
+                id="tab-trends"
+                onClick={() => setActiveTab('trends')}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  background: activeTab === 'trends' ? '#1a1a16' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'trends' ? '2px solid #c8f060' : '2px solid transparent',
+                  color: activeTab === 'trends' ? '#c8f060' : '#666',
+                  fontWeight: activeTab === 'trends' ? 700 : 400,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                📈 Trends
+              </button>
+              <button
+                id="tab-diff"
+                onClick={() => setActiveTab('diff')}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  background: activeTab === 'diff' ? '#1a1a16' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'diff' ? '2px solid #c8f060' : '2px solid transparent',
+                  color: activeTab === 'diff' ? '#c8f060' : '#666',
+                  fontWeight: activeTab === 'diff' ? 700 : 400,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                ⚡ Diff
+              </button>
+              <button
+                id="tab-challenges"
+                onClick={() => { setActiveTab('challenges'); }}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  background: activeTab === 'challenges' ? '#1a1a16' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'challenges' ? '2px solid #c8f060' : '2px solid transparent',
+                  color: activeTab === 'challenges' ? '#c8f060' : '#666',
+                  fontWeight: activeTab === 'challenges' ? 700 : 400,
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  letterSpacing: '0.04em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                🎯 Challenges
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 800,
+                  color: activeTab === 'challenges' ? '#c8f060' : '#555',
+                  background: activeTab === 'challenges' ? 'rgba(200,240,96,0.15)' : 'rgba(255,255,255,0.06)',
+                  border: '1px solid currentColor',
+                  borderRadius: 20,
+                  padding: '0 0.4rem',
+                  lineHeight: '1.5',
+                }}>
+                  {solvedCount}/10
+                </span>
+              </button>
+            </div>
+
+            {/* Tab content */}
+            {activeTab === 'analysis' && (
+              <AnalysisBoard
+                analysis={analysis}
+                isAnalyzing={isAnalyzing}
+                originalCode={code}
+                code={code}
+              />
+            )}
+            {activeTab === 'cfg' && (
+              <div style={{ padding: '0.5rem' }}>
+                <CFGVisualizer code={code} language={effectiveLanguage} />
+              </div>
+            )}
+            {activeTab === 'trends' && (
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <TrendVisualiser />
+              </div>
+            )}
+            {activeTab === 'diff' && (
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <DiffAnalyzer token={token} />
+              </div>
+            )}
+            {activeTab === 'challenges' && (
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <ChallengeMode token={token} />
+              </div>
+            )}
           </div>
         </main>
       )}
@@ -297,6 +479,7 @@ function AppInner({ onBack }) {
                     analysis={leftResult}
                     isAnalyzing={isComparingLeft}
                     originalCode={leftCode}
+                    code={leftCode}
                   />
                 </div>
                 <div className="compare-board-divider" />
@@ -305,6 +488,7 @@ function AppInner({ onBack }) {
                     analysis={rightResult}
                     isAnalyzing={isComparingRight}
                     originalCode={rightCode}
+                    code={rightCode}
                   />
                 </div>
               </div>

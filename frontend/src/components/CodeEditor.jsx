@@ -13,7 +13,10 @@ export default function CodeEditor({ code, setCode, language, setLanguage, onAna
   const EditorComponent = Editor.default || Editor;
 
   const highlight = (code) => {
-    const lang = language === 'auto' ? 'javascript' : language;
+    let lang = language === 'auto' ? 'javascript' : language;
+    // Map our backend language key to Prism's grammar name
+    if (lang === 'cpp') lang = 'cpp';
+    if (lang === 'c')   lang = 'c';
     try {
       return Prism.highlight(code, Prism.languages[lang] || Prism.languages.javascript, lang);
     } catch {
@@ -34,7 +37,7 @@ export default function CodeEditor({ code, setCode, language, setLanguage, onAna
           <option value="javascript">JavaScript</option>
           <option value="java">Java</option>
           <option value="c">C</option>
-          <option value="cpp">C++ (Subset)</option>
+          <option value="cpp">C++</option>
         </select>
         <button 
           className="analyze-btn" 

@@ -45,7 +45,8 @@ body::before {
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-button, a { cursor: none !important; font-family: 'Syne', sans-serif; }
+body { cursor: none; }
+button, a { font-family: 'Syne', sans-serif; }
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }
 

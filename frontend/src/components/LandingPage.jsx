@@ -102,16 +102,16 @@ export default function LandingPage({ onEnterApp }) {
             Code analysis that <em>actually</em> understands you
           </h1>
           <p className="hero-subtitle">
-            Five original analysis engines built entirely on Python's AST module. No borrowed logic. Real complexity inference, data-flow tracing, and anti-pattern detection.
+            Ten original analysis engines built entirely on Python's AST module. No borrowed logic. Real complexity inference, data-flow tracing, and anti-pattern detection.
           </p>
           <div className="hero-actions">
             <button className="btn-primary" onClick={onEnterApp}>Try ASTra →</button>
-            <a href="https://github.com" target="_blank" rel="noreferrer" className="btn-ghost">View on GitHub</a>
+            <a href="https://github.com/RakshithSridharV/ai-code-analyzer" target="_blank" rel="noreferrer" className="btn-ghost">View on GitHub</a>
           </div>
         </div>
 
         <div className="hero-badge reveal">
-          Engines written / <span className="badge-value">5</span>
+          Engines written / <span className="badge-value">10</span>
         </div>
 
         <div className="code-preview reveal">
@@ -141,9 +141,9 @@ export default function LandingPage({ onEnterApp }) {
         <div className="section-header reveal">
           <div>
             <div className="section-label">The Core</div>
-            <h2 className="section-title">Five engines. <em>All original.</em></h2>
+            <h2 className="section-title">Ten engines. <em>All original.</em></h2>
           </div>
-          <div className="section-count">05</div>
+          <div className="section-count">10</div>
         </div>
 
         <div className="engines-grid reveal">
@@ -245,7 +245,7 @@ export default function LandingPage({ onEnterApp }) {
       <section id="about" className="stats-section reveal">
         <div className="stats">
           <div className="stat-card">
-            <div className="stat-number">5</div>
+            <div className="stat-number">10</div>
             <div className="stat-label">Original analysis engines written</div>
           </div>
           <div className="stat-card">
@@ -266,9 +266,9 @@ export default function LandingPage({ onEnterApp }) {
       <footer className="footer reveal">
         <div className="footer-left">© 2026 ASTra — Final Year Project, CSE</div>
         <div className="footer-right">
-          <a href="#github">GitHub</a>
-          <a href="#api">API Docs</a>
-          <a href="#contributing">CONTRIBUTING</a>
+          <a href="https://github.com/RakshithSridharV/ai-code-analyzer" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/RakshithSridharV/ai-code-analyzer#%F0%9F%94%8C-api-endpoints" target="_blank" rel="noreferrer">API Docs</a>
+          <a href="https://github.com/RakshithSridharV/ai-code-analyzer/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer">CONTRIBUTING</a>
         </div>
       </footer>
     </div>
